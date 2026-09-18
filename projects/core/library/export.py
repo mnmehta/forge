@@ -41,6 +41,11 @@ logger = logging.getLogger(__name__)
 DISABLE_CENSORING_TEST_FAILURE = True
 
 
+def _is_sha_based_run_without_pr() -> bool:
+    """Return whether this run has an exact SHA but no PR to notify."""
+    return bool(os.environ.get("PULL_PULL_SHA")) and not os.environ.get("PULL_NUMBER")
+
+
 class FinishReason(StrEnum):
     SUCCESS = "success"
     ERROR = "error"
@@ -380,7 +385,8 @@ def caliper_export_entrypoint(
 
     finally:
         # Send completion notifications regardless of success/failure
-        if status and not disable_notification:
+        sha_based_run = _is_sha_based_run_without_pr()
+        if status and not disable_notification and not sha_based_run:
             try:
                 notification_success = send_completion_notifications(
                     artifact_dir,
@@ -396,6 +402,8 @@ def caliper_export_entrypoint(
                 notification_failed = True
         elif disable_notification:
             logger.info("Notifications disabled via --disable-notification flag")
+        elif sha_based_run:
+            logger.info("Notifications disabled for SHA-based run without PULL_NUMBER")
 
         if not disable_file_export:
             if not dry_run:
